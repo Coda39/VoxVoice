@@ -50,10 +50,12 @@ export const signInAction = async (formData: FormData) => {
   });
 
   if (error) {
+    // Keep error redirect the same
     return encodedRedirect("error", "/sign-in", error.message);
   }
 
-  return redirect("/protected");
+  // Redirect to the recording page on success
+  return redirect("/protected/record");
 };
 
 export const forgotPasswordAction = async (formData: FormData) => {

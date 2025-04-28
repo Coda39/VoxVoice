@@ -7,6 +7,7 @@ const config = {
     "./components/**/*.{ts,tsx}",
     "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
+    "*.{js,ts,jsx,tsx,mdx}",
   ],
   prefix: "",
   theme: {
@@ -51,6 +52,13 @@ const config = {
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
+        },
+        nous: {
+          dark: "#0f4c75",
+          medium: "#3282b8",
+          light: "#bbe1fa",
+          pale: "#bfd7ed",
+          background: "#f8fafc",
         },
       },
       borderRadius: {
