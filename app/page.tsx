@@ -30,7 +30,7 @@ export default async function Home() {
               href="#process"
               className="text-sm font-medium text-[#3282b8] hover:text-[#0f4c75] transition-colors"
             >
-              Process
+              How It Works
             </Link>
             <Link
               href="#privacy"
@@ -39,14 +39,14 @@ export default async function Home() {
               Privacy
             </Link>
           </nav>
-          {/* --- Updated Button --- */}
           <Button
             asChild
             className="bg-[#0f4c75] hover:bg-[#1a6ea8] text-white"
           >
-            <Link href={contributeLink}>Contribute Now</Link>
+            <Link href={contributeLink}>
+              {user ? "Record Now" : "Sign In to Record"}
+            </Link>
           </Button>
-          {/* --- End Updated Button --- */}
         </div>
       </header>
       <main className="flex-1">
@@ -55,18 +55,17 @@ export default async function Home() {
             <div className="grid gap-6 lg:grid-cols-2 lg:gap-12 items-center">
               <div className="space-y-4">
                 <div className="inline-flex items-center rounded-full border border-[#3282b8] bg-[#bbe1fa]/20 px-3 py-1 text-sm text-[#0f4c75]">
-                  Vox Research Initiative
+                  Machine Learning Class Project
                 </div>
                 <h1 className=" text-3xl md:text-4xl lg:text-5xl font-bold tracking-tighter text-[#0f4c75]">
-                  CONTRIBUTE YOUR VOICE TO THE FUTURE OF AI
+                  LEND YOUR VOICE TO OUR CLASS PROJECT!
                 </h1>
                 <p className="text-[#3282b8] md:text-xl">
-                  Help by contributing your voice recordings to my research
-                  project. Aiming to learn to classify between male and female
-                  voices.
+                  Help our student team gather data! We're building a fun ML
+                  model to classify voices as male or female, and we need your
+                  recordings to train it.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3">
-                  {/* --- Updated Button --- */}
                   <Button
                     asChild
                     className="bg-[#0f4c75] hover:bg-[#1a6ea8] text-white h-12 px-6 rounded-md"
@@ -75,10 +74,10 @@ export default async function Home() {
                       <Mic className="mr-2 h-5 w-5" /> Record Your Voice
                     </Link>
                   </Button>
-                  {/* --- End Updated Button --- */}
                 </div>
               </div>
               <div className="relative aspect-square md:aspect-auto md:h-[500px] lg:h-[600px] overflow-hidden border-4 border-white shadow-xl">
+                {/* Image remains the same, context is adjusted by text */}
                 <div className="absolute inset-0 bg-[#0f4c75]/10 z-10">
                   <Image
                     src="/shouting_woman.png"
@@ -99,26 +98,25 @@ export default async function Home() {
               <div className="order-2 lg:order-1">
                 <div className="space-y-4">
                   <h2 className=" text-2xl md:text-3xl font-bold text-[#0f4c75]">
-                    HOW THE RECORDING PROCESS WORKS
+                    HOW IT WORKS (IT'S QUICK & EASY!)
                   </h2>
                   <p className="text-[#3282b8] md:text-lg">
-                    Contributing your voice is simple, secure, and takes just a
-                    few minutes of your time.
+                    Contributing takes just a few minutes. Here’s the simple
+                    process:
                   </p>
 
                   <div className="space-y-6 mt-6">
-                    {/* Process steps remain the same */}
+                    {/* Process steps adjusted slightly */}
                     <div className="flex gap-4">
                       <div className="w-8 h-8 rounded-full bg-[#0f4c75] flex items-center justify-center flex-shrink-0 mt-1">
                         <span className="text-white font-bold">1</span>
                       </div>
                       <div>
                         <h3 className=" text-lg font-bold text-[#0f4c75]">
-                          READ SAMPLE TEXTS
+                          READ A PROMPT
                         </h3>
                         <p className="text-[#3282b8]">
-                          You'll be presented with various texts to read aloud
-                          and record.
+                          We'll give a short, simple text prompt to read aloud.
                         </p>
                       </div>
                     </div>
@@ -132,8 +130,8 @@ export default async function Home() {
                           RECORD YOUR VOICE
                         </h3>
                         <p className="text-[#3282b8]">
-                          Use your device's microphone to record clear audio
-                          samples.
+                          Use your device's microphone to make the recordings.
+                          Clear audio helps!
                         </p>
                       </div>
                     </div>
@@ -144,31 +142,30 @@ export default async function Home() {
                       </div>
                       <div>
                         <h3 className=" text-lg font-bold text-[#0f4c75]">
-                          SUBMIT & CONTRIBUTE
+                          SUBMIT FOR THE PROJECT
                         </h3>
                         <p className="text-[#3282b8]">
-                          Review your recordings and submit them to our research
-                          database.
+                          Review your clips and submit them to help our
+                          project's dataset.
                         </p>
                       </div>
                     </div>
                   </div>
-                  {/* --- Updated Button --- */}
                   <Button
                     asChild
                     className="bg-[#0f4c75] hover:bg-[#1a6ea8] text-white mt-6"
                   >
                     <Link href={contributeLink}>Start Recording Now</Link>
                   </Button>
-                  {/* --- End Updated Button --- */}
                 </div>
               </div>
 
               <div className="order-1 lg:order-2 relative aspect-video md:aspect-square  overflow-hidden border-4 border-white shadow-xl">
+                {/* Image remains the same */}
                 <div className="absolute inset-0 bg-[#0f4c75]/10 z-10">
                   <Image
                     src="/diagram2.png"
-                    alt="speaking woman logo"
+                    alt="Process diagram illustration"
                     fill
                     className="object-cover"
                     priority
@@ -179,7 +176,7 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Privacy Section remains the same */}
+        {/* Privacy Section adjusted for project context */}
         <section
           id="privacy"
           className="py-12 md:py-24 bg-[#0f4c75] text-white"
@@ -188,31 +185,32 @@ export default async function Home() {
             <div className="mx-auto max-w-2xl text-center space-y-4">
               <Shield className="h-12 w-12 mx-auto mb-4 text-[#bbe1fa]" />
               <h2 className=" text-2xl md:text-3xl font-bold">
-                YOUR DATA PRIVACY IS OUR PRIORITY
+                YOUR PRIVACY MATTERS
               </h2>
               <p className="text-[#bbe1fa] md:text-lg">
-                We're committed to protecting your privacy and using your voice
-                data responsibly.
+                We take data handling seriously, even for a class project.
               </p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-8 mt-12">
               <div className="bg-[#1a6ea8] p-6 rounded-lg">
-                <h3 className=" text-xl font-bold mb-2">DATA USAGE</h3>
+                <h3 className=" text-xl font-bold mb-2">PROJECT USE ONLY</h3>
                 <p className="text-[#bbe1fa]">
-                  Your voice recordings will only be used for research purposes
-                  to improve machine learning models. We'll never sell your data
-                  to third parties or use it for purposes outside of our
-                  research scope.
+                  Your voice recordings will *only* be used for this specific
+                  machine learning class project to train our male/female voice
+                  classifier. They won't be sold, shared publicly, or used for
+                  any other purpose.
+                  {/* Optional: Add if applicable */}
+                  {/* We plan to delete all collected data after the project is graded. */}
                 </p>
               </div>
 
               <div className="bg-[#1a6ea8] p-6 rounded-lg">
                 <h3 className=" text-xl font-bold mb-2">ANONYMIZATION</h3>
                 <p className="text-[#bbe1fa]">
-                  All voice data is anonymized before being added to our
-                  research database. Your personal information is kept separate
-                  from your voice recordings to protect your identity.
+                  While you sign in to contribute, your user identity is kept
+                  separate from the voice data used for training. The audio
+                  files used by the model are anonymized.
                 </p>
               </div>
             </div>
@@ -223,14 +221,13 @@ export default async function Home() {
           <div className="container px-4 md:px-6">
             <div className="mx-auto max-w-3xl text-center space-y-8">
               <h2 className=" text-2xl md:text-3xl font-bold text-[#0f4c75]">
-                JOIN THOUSANDS OF CONTRIBUTORS SHAPING THE FUTURE OF VOICE AI
+                HELP OUR PROJECT SUCCEED!
               </h2>
               <p className="text-[#3282b8] md:text-xl">
-                Your voice matters. By contributing just a few minutes of your
-                time, you'll help create more natural, responsive, and accurate
-                voice technologies.
+                Your voice recording is a valuable piece of data for our student
+                project! Just a few minutes of your time makes a big difference
+                in helping us learn ML and build our voice classifier.
               </p>
-              {/* --- Updated Button --- */}
               <Button
                 asChild
                 className="bg-[#0f4c75] hover:bg-[#1a6ea8] text-white h-14 px-8 text-lg rounded-md mx-auto"
@@ -239,15 +236,14 @@ export default async function Home() {
                   <Mic className="mr-2 h-5 w-5" /> Record Your Voice
                 </Link>
               </Button>
-              {/* --- End Updated Button --- */}
               <p className="text-sm text-[#3282b8]">
-                By participating, you agree to our{" "}
+                By participating, you agree to our simple project{" "}
                 <Link href="#" className="underline">
-                  Terms of Service
+                  Terms
                 </Link>{" "}
                 and{" "}
                 <Link href="#" className="underline">
-                  Privacy Policy
+                  Privacy Notes
                 </Link>
                 .
               </p>
@@ -255,18 +251,18 @@ export default async function Home() {
           </div>
         </section>
       </main>
-      {/* Footer remains the same */}
+      {/* Footer adjusted slightly */}
       <footer className="border-t border-[#bfd7ed] bg-[#f8fafc] py-6">
         <div className="container px-4 md:px-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2">
               <WaveformCircle className="h-6 w-6 text-[#0f4c75]" />
               <span className="text-sm font-bold text-[#0f4c75]">
-                VOX VOICE RESEARCH
+                VOX VOICE
               </span>
             </div>
             <div className="text-sm text-[#3282b8]">
-              © {new Date().getFullYear()} Vox Research. All rights reserved.
+              © {new Date().getFullYear()} Vox Voice.
             </div>
             <div className="flex gap-4">
               <Link
@@ -281,12 +277,8 @@ export default async function Home() {
               >
                 Terms
               </Link>
-              <Link
-                href="#"
-                className="text-sm text-[#3282b8] hover:text-[#0f4c75]"
-              >
-                Contact
-              </Link>
+              {/* Keep Contact if you have one, otherwise remove */}
+              {/* <Link href="#" className="text-sm text-[#3282b8] hover:text-[#0f4c75]">Contact</Link> */}
             </div>
           </div>
         </div>
