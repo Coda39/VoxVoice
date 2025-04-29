@@ -55,6 +55,10 @@ app/
       page.tsx
     layout.tsx
     smtp-message.tsx
+  admin/
+    dashboard/
+      actions.ts
+      page.tsx
   auth/
     callback/
       route.ts
@@ -104,7 +108,6 @@ utils/
     client.ts
     middleware.ts
     server.ts
-  registerWavEncoder.ts
   utils.ts
 .gitignore
 components.json
@@ -180,7 +183,7 @@ const AppHeader = () => (
     <div className="container flex h-16 items-center justify-between px-4 md:px-6">
       <Link href="/" className="flex items-center gap-2">
         <WaveformCircle className="h-8 w-8 text-[#0f4c75]" />
-        <span className=" text-xl font-bold tracking-tight text-[#0f4c75]">
+        <span className="font-mondwest text-xl font-bold tracking-tight text-[#0f4c75]">
           VOX VOICE
         </span>
       </Link>
@@ -218,7 +221,7 @@ const AppFooter = () => (
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-2">
           <WaveformCircle className="h-6 w-6 text-[#0f4c75]" />
-          <span className=" text-sm font-bold text-[#0f4c75]">
+          <span className="font-mondwest text-sm font-bold text-[#0f4c75]">
             VOX VOICE RESEARCH
           </span>
         </div>
@@ -265,7 +268,7 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
             <div className="text-center mb-4">
               {" "}
               {/* Center heading */}
-              <h1 className="text-2xl font-bold text-[#0f4c75] ">
+              <h1 className="text-2xl font-bold text-[#0f4c75] font-mondwest">
                 Sign in
               </h1>{" "}
               {/* Use theme colors/font */}
@@ -353,7 +356,7 @@ const AppHeader = () => (
     <div className="container flex h-16 items-center justify-between px-4 md:px-6">
       <Link href="/" className="flex items-center gap-2">
         <WaveformCircle className="h-8 w-8 text-[#0f4c75]" />
-        <span className=" text-xl font-bold tracking-tight text-[#0f4c75]">
+        <span className="font-mondwest text-xl font-bold tracking-tight text-[#0f4c75]">
           VOX VOICE
         </span>
       </Link>
@@ -387,7 +390,7 @@ const AppFooter = () => (
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-2">
           <WaveformCircle className="h-6 w-6 text-[#0f4c75]" />
-          <span className=" text-sm font-bold text-[#0f4c75]">
+          <span className="font-mondwest text-sm font-bold text-[#0f4c75]">
             VOX VOICE RESEARCH
           </span>
         </div>
@@ -458,7 +461,7 @@ export default async function Signup(props: {
             <div className="text-center mb-4">
               {" "}
               {/* Center heading */}
-              <h1 className="text-2xl font-bold text-[#0f4c75] ">
+              <h1 className="text-2xl font-bold text-[#0f4c75] font-mondwest">
                 Sign up
               </h1>{" "}
               {/* Use theme colors/font */}
@@ -564,6 +567,313 @@ export function SmtpMessage() {
           </Link>
         </div>
       </div>
+    </div>
+  );
+}
+
+================
+File: app/admin/dashboard/actions.ts
+================
+"use server";
+
+import { createClient } from "@/utils/supabase/server";
+import { headers } from "next/headers";
+import Papa from "papaparse"; // For CSV generation
+
+// --- Admin Check Function (Needs Improvement for Production) ---
+async function isAdmin(): Promise<boolean> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return false;
+
+  const adminEmails = (process.env.ADMIN_EMAILS || "").split(",");
+  return adminEmails.includes(user.email || "");
+  // --- Recommended Production Approach ---
+  // const { data: profile, error } = await supabase
+  //   .from('profiles') // Assuming a 'profiles' table exists
+  //   .select('role')
+  //   .eq('id', user.id)
+  //   .single();
+  // return !error && profile?.role === 'admin';
+  // --- End Recommended ---
+}
+// --- End Admin Check ---
+
+export type RecordingData = {
+  id: string;
+  created_at: string;
+  user_id: string;
+  gender: string;
+  age_range: string;
+  phrase_text: string;
+  file_path: string;
+  download_url?: string; // Add this for the component
+};
+
+export async function getRecordingsAction(): Promise<
+  { data: RecordingData[] } | { error: string }
+> {
+  if (!(await isAdmin())) {
+    return { error: "Unauthorized" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("voice_recordings")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching recordings:", error);
+    return { error: `Database error: ${error.message}` };
+  }
+
+  // Generate public URLs (assuming public bucket)
+  const recordingsWithUrls = data.map((rec) => {
+    const { data: urlData } = supabase.storage
+      .from("recordings")
+      .getPublicUrl(rec.file_path);
+    return {
+      ...rec,
+      download_url: urlData?.publicUrl || "#", // Provide a fallback
+    };
+  });
+
+  return { data: recordingsWithUrls };
+}
+
+export async function getMetadataCsvAction(): Promise<
+  { csvData: string } | { error: string }
+> {
+  if (!(await isAdmin())) {
+    return { error: "Unauthorized" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("voice_recordings")
+    .select(
+      "id, created_at, user_id, gender, age_range, phrase_text, file_path",
+    ) // Select specific columns
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching recordings for CSV:", error);
+    return { error: `Database error: ${error.message}` };
+  }
+
+  if (!data || data.length === 0) {
+    return { csvData: "" }; // Return empty string if no data
+  }
+
+  try {
+    const csv = Papa.unparse(data);
+    return { csvData: csv };
+  } catch (csvError) {
+    console.error("Error generating CSV:", csvError);
+    return { error: "Failed to generate CSV data." };
+  }
+}
+
+// Action to get a signed URL (if bucket were private)
+// export async function getSignedAudioUrlAction(filePath: string): Promise<{ url: string } | { error: string }> {
+//   if (!await isAdmin()) {
+//     return { error: "Unauthorized" };
+//   }
+//   const supabase = await createClient();
+//   const { data, error } = await supabase.storage
+//     .from('recordings')
+//     .createSignedUrl(filePath, 60); // Expires in 60 seconds
+
+//   if (error) {
+//     return { error: `Storage error: ${error.message}` };
+//   }
+//   return { url: data.signedUrl };
+// }
+
+================
+File: app/admin/dashboard/page.tsx
+================
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  getRecordingsAction,
+  getMetadataCsvAction,
+  RecordingData,
+} from "./actions";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Download, Loader2, AlertCircle } from "lucide-react";
+import Link from "next/link";
+
+export default function AdminDashboard() {
+  const [recordings, setRecordings] = useState<RecordingData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isDownloadingCsv, setIsDownloadingCsv] = useState(false);
+
+  useEffect(() => {
+    const fetchRecordings = async () => {
+      setIsLoading(true);
+      setError(null);
+      const result = await getRecordingsAction();
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setRecordings(result.data);
+      }
+      setIsLoading(false);
+    };
+    fetchRecordings();
+  }, []);
+
+  const handleDownloadCsv = async () => {
+    setIsDownloadingCsv(true);
+    setError(null);
+    const result = await getMetadataCsvAction();
+    if (result.error) {
+      setError(`CSV Download Error: ${result.error}`);
+    } else if (result.csvData) {
+      try {
+        const blob = new Blob([result.csvData], {
+          type: "text/csv;charset=utf-8;",
+        });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute(
+          "download",
+          `voice_recordings_metadata_${new Date().toISOString().split("T")[0]}.csv`,
+        );
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (downloadError) {
+        console.error("Error creating download link:", downloadError);
+        setError("Failed to initiate CSV download in browser.");
+      }
+    } else {
+      setError("No metadata found to download.");
+    }
+    setIsDownloadingCsv(false);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="ml-2">Loading dashboard...</p>
+      </div>
+    );
+  }
+
+  if (error === "Unauthorized") {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4 text-destructive">
+        <AlertCircle className="h-12 w-12" />
+        <h1 className="text-2xl font-bold">Access Denied</h1>
+        <p>You do not have permission to view this page.</p>
+        <Button asChild variant="outline">
+          <Link href="/protected">Go to Protected Page</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4 text-destructive">
+        <AlertCircle className="h-12 w-12" />
+        <h1 className="text-2xl font-bold">Error Loading Data</h1>
+        <p>{error}</p>
+        <Button onClick={() => window.location.reload()} variant="outline">
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 w-full flex flex-col gap-8 p-4 md:p-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h1 className="text-3xl font-bold">Admin Dashboard - Recordings</h1>
+        <Button
+          onClick={handleDownloadCsv}
+          disabled={isDownloadingCsv || recordings.length === 0}
+          className="gap-2"
+        >
+          {isDownloadingCsv ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          Download Metadata (CSV)
+        </Button>
+      </div>
+
+      {recordings.length === 0 ? (
+        <p className="text-center text-muted-foreground">
+          No recordings found.
+        </p>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Recorded At</TableHead>
+                <TableHead>User ID</TableHead>
+                <TableHead>Gender</TableHead>
+                <TableHead>Age Range</TableHead>
+                <TableHead>Phrase</TableHead>
+                <TableHead>Audio File</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {recordings.map((rec) => (
+                <TableRow key={rec.id}>
+                  <TableCell>
+                    {new Date(rec.created_at).toLocaleString()}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {rec.user_id}
+                  </TableCell>
+                  <TableCell>{rec.gender}</TableCell>
+                  <TableCell>{rec.age_range}</TableCell>
+                  <TableCell className="max-w-xs truncate">
+                    {rec.phrase_text}
+                  </TableCell>
+                  <TableCell>
+                    <Button asChild variant="outline" size="sm">
+                      <a
+                        href={rec.download_url}
+                        target="_blank" // Open in new tab
+                        rel="noopener noreferrer"
+                        download={rec.file_path} // Suggest filename
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download WAV
+                      </a>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }
@@ -739,15 +1049,12 @@ import { Loader2, Mic, MicOff, Pause, Play, StopCircle } from "lucide-react";
 import { submitRecordingAction } from "./actions";
 import { FormMessage, Message } from "@/components/form-message";
 
-// Import the registration function
-import { registerWavEncoder } from "@/utils/registerWavEncoder";
-
-// Import from extendable-media-recorder (still needed for the MediaRecorder constructor)
-import { MediaRecorder, register } from "extendable-media-recorder";
-// No longer need to import 'connect' here
-
 const phrases = [
-  "The rainbow appears after the rain, showcasing vibrant colors while the birds sing sweetly by the flowing stream",
+  "The quick brown fox jumps over the lazy dog.",
+  "How razorback-jumping frogs can level six piqued gymnasts!",
+  "Pack my box with five dozen liquor jugs.",
+  "Please read this sentence clearly and naturally.",
+  "Voice data helps improve artificial intelligence.",
 ];
 
 export default function RecordPage() {
@@ -762,7 +1069,6 @@ export default function RecordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [isEncoderReady, setIsEncoderReady] = useState(false); // New state to track encoder readiness
 
   // MediaRecorder states
   const [isRecording, setIsRecording] = useState(false);
@@ -781,31 +1087,23 @@ export default function RecordPage() {
   const visualizerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const setupPage = async () => {
-      // Register the WAV encoder when the component mounts
-      await registerWavEncoder();
-      setIsEncoderReady(true); // Mark the encoder as ready
-
-      const getUser = async () => {
-        try {
-          const {
-            data: { user },
-          } = await supabase.auth.getUser();
-          if (!user) {
-            router.push("/sign-in");
-          } else {
-            setUserId(user.id);
-          }
-        } catch (error) {
-          console.error("Error fetching user:", error);
+    const getUser = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
           router.push("/sign-in");
+        } else {
+          setUserId(user.id);
         }
-      };
-      getUser();
-      setCurrentPhrase(phrases[Math.floor(Math.random() * phrases.length)]);
+      } catch (error) {
+        console.error("Error fetching user:", error);
+        router.push("/sign-in");
+      }
     };
-
-    setupPage();
+    getUser();
+    setCurrentPhrase(phrases[Math.floor(Math.random() * phrases.length)]);
 
     // Cleanup function
     return () => {
@@ -821,24 +1119,8 @@ export default function RecordPage() {
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
-      // It's generally not necessary to unregister the encoder
-      // but you might consider stopping the connected worker if needed
     };
-  }, [supabase, router]); // Include dependencies that should trigger this effect
-
-  // Add a check to disable recording features if the encoder failed to register
-  useEffect(() => {
-    // Check if message is not null AND if it has the 'error' property
-    if (message && "error" in message && typeof message.error === "string") {
-      if (message.error.includes("Failed to initialize audio recorder")) {
-        // You might want to disable the record button or show a specific message
-        // indicating recording is not possible.
-        console.log("WAV encoder failed to initialize, disabling recording.");
-        // Example: set a state to disable the record button
-        // setIsRecordingEnabled(false);
-      }
-    }
-  }, [message]);
+  }, [supabase, router]);
 
   // Function to request microphone access
   const getMicrophonePermission = async () => {
@@ -890,15 +1172,6 @@ export default function RecordPage() {
     setAudioUrl(null);
     setMessage(null);
     audioChunksRef.current = [];
-    setRecordingTime(0); // Reset timer
-
-    // Check if the encoder is ready before starting recording
-    if (!isEncoderReady) {
-      setMessage({
-        error: "Audio recorder is not ready. Please wait or refresh.",
-      });
-      return;
-    }
 
     // Get microphone permission if needed
     if (!streamRef.current) {
@@ -907,9 +1180,17 @@ export default function RecordPage() {
     }
 
     try {
-      // Create MediaRecorder instance with audio/wav mime type
+      // Create MediaRecorder instance with best available mime type
+      let mimeType = "audio/webm";
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = "audio/mp4";
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = ""; // Let browser decide
+        }
+      }
+
       const mediaRecorder = new MediaRecorder(streamRef.current!, {
-        mimeType: "audio/wav", // Specify WAV mime type
+        mimeType: mimeType || undefined,
       });
 
       // Set up event handlers
@@ -929,15 +1210,14 @@ export default function RecordPage() {
         }
 
         try {
-          // Create the WAV blob
           const audioBlob = new Blob(audioChunksRef.current, {
-            type: "audio/wav", // The type should be audio/wav
+            type: mediaRecorder.mimeType || "audio/webm",
           });
           const url = URL.createObjectURL(audioBlob);
           setAudioBlob(audioBlob);
           setAudioUrl(url);
           console.log(
-            "Recording stopped, WAV blob created:",
+            "Recording stopped, blob created:",
             audioBlob.size,
             "bytes",
           );
@@ -950,8 +1230,7 @@ export default function RecordPage() {
       };
 
       // Store the MediaRecorder reference
-      // Use a type assertion to tell TypeScript it's a MediaRecorder
-      mediaRecorderRef.current = mediaRecorder as MediaRecorder;
+      mediaRecorderRef.current = mediaRecorder;
 
       // Start recording
       mediaRecorder.start(100); // Collect data every 100ms
@@ -965,7 +1244,10 @@ export default function RecordPage() {
         setRecordingTime(seconds);
       }, 1000);
 
-      console.log("Recording started with mime type: audio/wav");
+      console.log(
+        "Recording started with mime type:",
+        mimeType || "browser default",
+      );
     } catch (err: any) {
       console.error("Error starting recording:", err);
       setMessage({ error: `Failed to start recording: ${err.message}` });
@@ -1058,86 +1340,47 @@ export default function RecordPage() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    console.log("handleSubmit triggered.");
-    console.log("Current userId state:", userId);
-    console.log("Current audioBlob exists:", !!audioBlob);
-    console.log("Current audioBlob type:", audioBlob?.type);
-    console.log("Current audioBlob size:", audioBlob?.size);
-    console.log("Current gender:", gender);
-    console.log("Current ageRange:", ageRange);
-    console.log("Current phrase:", currentPhrase);
-
     if (!audioBlob || !gender || !ageRange || !userId || !currentPhrase) {
       setMessage({ error: "Please record audio and fill all fields." });
-      setIsLoading(false); // Ensure loading stops if validation fails early
       return;
     }
-
-    const timestamp = Date.now();
-    // The extension will now always be wav
-    const filePath = `${userId}/${timestamp}.wav`;
-
-    const {
-      data: { user: authUser },
-      error: authCheckError,
-    } = await supabase.auth.getUser();
-    if (authCheckError || !authUser) {
-      console.error(
-        "Authentication check failed before upload:",
-        authCheckError,
-      );
-      setMessage({
-        error: "Authentication session issue. Please sign in again.",
-      });
-      setIsLoading(false);
-      return;
-    }
-    // Verify the userId state matches the currently authenticated user
-    if (userId !== authUser.id) {
-      console.warn(
-        "User ID state mismatch! State:",
-        userId,
-        "Auth:",
-        authUser.id,
-        "Attempting to fix state.",
-      );
-      setUserId(authUser.id);
-      // Re-generate filePath with the correct ID
-      const filePath = `${authUser.id}/${timestamp}.wav`;
-      console.log("Regenerated filePath with authUser.id:", filePath);
-    } else {
-      console.log("User ID state matches authenticated user.");
-    }
-
-    console.log("Generated filePath for upload:", filePath); // Log the final path
 
     setIsLoading(true);
     setMessage(null);
 
     try {
-      // Add logging right before the upload call
       console.log(
-        `Attempting upload to Supabase Storage: bucket=recordings, path=${filePath}`,
+        "Preparing to upload blob:",
+        audioBlob.type,
+        audioBlob.size,
+        "bytes",
       );
 
+      // Determine the file extension based on MIME type
+      const extension = audioBlob.type.includes("webm")
+        ? "webm"
+        : audioBlob.type.includes("mp4")
+          ? "mp4"
+          : "wav";
+      const timestamp = Date.now();
+      const filePath = `${userId}_${timestamp}.${extension}`;
+
+      console.log("Uploading to path:", filePath);
+
+      // Upload to Supabase storage
       const { data, error: uploadError } = await supabase.storage
         .from("recordings")
         .upload(filePath, audioBlob, {
           cacheControl: "3600",
           upsert: true,
-          contentType: "audio/wav", // Explicitly set content type to WAV
+          contentType: audioBlob.type || "audio/webm",
         });
 
-      // Log the immediate result
-      console.log("Supabase storage upload result:", { data, uploadError });
-
       if (uploadError) {
-        // Log the specific uploadError object before throwing
-        console.error("Upload Error Object:", uploadError);
-        // Use a more specific error message if possible
-        const errorMessage = uploadError.message || JSON.stringify(uploadError);
-        throw new Error(`Storage Upload Error: ${errorMessage}`);
+        console.error("Upload error:", uploadError);
+        throw new Error(`Storage Error: ${uploadError.message}`);
       }
+
       console.log("Upload successful, data:", data);
 
       // Create form data for server action
@@ -1165,7 +1408,7 @@ export default function RecordPage() {
         setCurrentPhrase(phrases[Math.floor(Math.random() * phrases.length)]);
       }
     } catch (error: any) {
-      console.error("Submission failed in catch block:", error);
+      console.error("Submission failed:", error);
       setMessage({
         error: `Submission failed: ${error.message || "Please try again."}`,
       });
@@ -1174,12 +1417,10 @@ export default function RecordPage() {
     }
   };
 
-  if (!userId || !isEncoderReady) {
-    // Also wait for the encoder to be ready
+  if (!userId) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin" />
-        <p className="ml-2">Loading audio recorder...</p>
       </div>
     );
   }
@@ -1390,8 +1631,7 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Mic } from "lucide-react";
-import { signOutAction } from "@/app/actions"; // <-- Import the sign out action
+import { Mic } from "lucide-react"; // Or ArrowRight, etc.
 
 export default async function ProtectedRedirectPage() {
   const supabase = await createClient();
@@ -1400,18 +1640,17 @@ export default async function ProtectedRedirectPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Still need this check for direct navigation attempts
   if (!user) {
     return redirect("/sign-in");
   }
 
+  // Simple page content with a button to the record page
   return (
     <div className="flex-1 w-full flex flex-col items-center justify-center gap-8 p-4 text-center">
       <div className="space-y-2">
         <h1 className="text-3xl font-bold text-[#0f4c75]">Welcome!</h1>
-        <p className="text-muted-foreground">
-          You are successfully signed in as {user.email}.{" "}
-          {/* Optional: Show email */}
-        </p>
+        <p className="text-muted-foreground">You are successfully signed in.</p>
       </div>
       <div className="flex flex-col items-center gap-4">
         <p className="text-lg">Ready to contribute your voice?</p>
@@ -1426,16 +1665,12 @@ export default async function ProtectedRedirectPage() {
           </Link>
         </Button>
       </div>
-
-      {/* --- Add Logout Button --- */}
-      <div className="mt-6">
-        <form action={signOutAction}>
-          <Button type="submit" variant="outline" size="sm">
-            Sign Out
-          </Button>
-        </form>
-      </div>
-      {/* --- End Logout Button --- */}
+      {/* Optional: Add a sign out button here too if desired */}
+      {/* <form action={signOutAction}>
+                <Button type="submit" variant={"outline"} size="sm">
+                    Sign out
+                </Button>
+            </form> */}
     </div>
   );
 }
@@ -1646,11 +1881,10 @@ File: app/globals.css
 ================
 File: app/layout.tsx
 ================
-// app/layout.tsx
 import type React from "react";
 import "@/app/globals.css";
 import { Inter } from "next/font/google";
-import { ThemeProvider } from "next-themes"; // Assuming ThemeProvider is used here or imported
+import { ThemeProvider } from "next-themes";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -1666,19 +1900,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    // Add suppressHydrationWarning here
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <head>
-        <link rel="stylesheet" />
+        <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/mondwest" />
       </head>
       <body className={inter.className}>
-        {/* Ensure ThemeProvider wraps the children that need theme context */}
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem // Recommended to respect system preference
-          // disableTransitionOnChange // Can sometimes help with theme flashes
-        >
+        <ThemeProvider attribute="class" defaultTheme="light">
           {children}
         </ThemeProvider>
       </body>
@@ -1712,7 +1939,7 @@ export default async function Home() {
         <div className="container flex h-16 items-center justify-between px-4 md:px-6">
           <Link href="/" className="flex items-center gap-2">
             <WaveformCircle className="h-8 w-8 text-[#0f4c75]" />
-            <span className="text-xl font-bold tracking-tight text-[#0f4c75]">
+            <span className="font-mondwest text-xl font-bold tracking-tight text-[#0f4c75]">
               VOX VOICE
             </span>
           </Link>
@@ -1721,7 +1948,7 @@ export default async function Home() {
               href="#process"
               className="text-sm font-medium text-[#3282b8] hover:text-[#0f4c75] transition-colors"
             >
-              How It Works
+              Process
             </Link>
             <Link
               href="#privacy"
@@ -1730,14 +1957,14 @@ export default async function Home() {
               Privacy
             </Link>
           </nav>
+          {/* --- Updated Button --- */}
           <Button
             asChild
             className="bg-[#0f4c75] hover:bg-[#1a6ea8] text-white"
           >
-            <Link href={contributeLink}>
-              {user ? "Record Now" : "Sign In to Record"}
-            </Link>
+            <Link href={contributeLink}>Contribute Now</Link>
           </Button>
+          {/* --- End Updated Button --- */}
         </div>
       </header>
       <main className="flex-1">
@@ -1746,17 +1973,18 @@ export default async function Home() {
             <div className="grid gap-6 lg:grid-cols-2 lg:gap-12 items-center">
               <div className="space-y-4">
                 <div className="inline-flex items-center rounded-full border border-[#3282b8] bg-[#bbe1fa]/20 px-3 py-1 text-sm text-[#0f4c75]">
-                  Machine Learning Class Project
+                  Vox Research Initiative
                 </div>
-                <h1 className=" text-3xl md:text-4xl lg:text-5xl font-bold tracking-tighter text-[#0f4c75]">
-                  LEND YOUR VOICE TO OUR CLASS PROJECT!
+                <h1 className="font-mondwest text-3xl md:text-4xl lg:text-5xl font-bold tracking-tighter text-[#0f4c75]">
+                  CONTRIBUTE YOUR VOICE TO THE FUTURE OF AI
                 </h1>
                 <p className="text-[#3282b8] md:text-xl">
-                  Help our student team gather data! We're building a fun ML
-                  model to classify voices as male or female, and we need your
-                  recordings to train it.
+                  Help by contributing your voice recordings to my research
+                  project. Aiming to learn to classify between male and female
+                  voices.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3">
+                  {/* --- Updated Button --- */}
                   <Button
                     asChild
                     className="bg-[#0f4c75] hover:bg-[#1a6ea8] text-white h-12 px-6 rounded-md"
@@ -1765,10 +1993,10 @@ export default async function Home() {
                       <Mic className="mr-2 h-5 w-5" /> Record Your Voice
                     </Link>
                   </Button>
+                  {/* --- End Updated Button --- */}
                 </div>
               </div>
               <div className="relative aspect-square md:aspect-auto md:h-[500px] lg:h-[600px] overflow-hidden border-4 border-white shadow-xl">
-                {/* Image remains the same, context is adjusted by text */}
                 <div className="absolute inset-0 bg-[#0f4c75]/10 z-10">
                   <Image
                     src="/shouting_woman.png"
@@ -1788,26 +2016,27 @@ export default async function Home() {
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               <div className="order-2 lg:order-1">
                 <div className="space-y-4">
-                  <h2 className=" text-2xl md:text-3xl font-bold text-[#0f4c75]">
-                    HOW IT WORKS (IT'S QUICK & EASY!)
+                  <h2 className="font-mondwest text-2xl md:text-3xl font-bold text-[#0f4c75]">
+                    HOW THE RECORDING PROCESS WORKS
                   </h2>
                   <p className="text-[#3282b8] md:text-lg">
-                    Contributing takes just a few minutes. Here’s the simple
-                    process:
+                    Contributing your voice is simple, secure, and takes just a
+                    few minutes of your time.
                   </p>
 
                   <div className="space-y-6 mt-6">
-                    {/* Process steps adjusted slightly */}
+                    {/* Process steps remain the same */}
                     <div className="flex gap-4">
                       <div className="w-8 h-8 rounded-full bg-[#0f4c75] flex items-center justify-center flex-shrink-0 mt-1">
                         <span className="text-white font-bold">1</span>
                       </div>
                       <div>
-                        <h3 className=" text-lg font-bold text-[#0f4c75]">
-                          READ A PROMPT
+                        <h3 className="font-mondwest text-lg font-bold text-[#0f4c75]">
+                          READ SAMPLE TEXTS
                         </h3>
                         <p className="text-[#3282b8]">
-                          We'll give a short, simple text prompt to read aloud.
+                          You'll be presented with various texts to read aloud
+                          and record.
                         </p>
                       </div>
                     </div>
@@ -1817,12 +2046,12 @@ export default async function Home() {
                         <span className="text-white font-bold">2</span>
                       </div>
                       <div>
-                        <h3 className=" text-lg font-bold text-[#0f4c75]">
+                        <h3 className="font-mondwest text-lg font-bold text-[#0f4c75]">
                           RECORD YOUR VOICE
                         </h3>
                         <p className="text-[#3282b8]">
-                          Use your device's microphone to make the recordings.
-                          Clear audio helps!
+                          Use your device's microphone to record clear audio
+                          samples.
                         </p>
                       </div>
                     </div>
@@ -1832,31 +2061,32 @@ export default async function Home() {
                         <span className="text-white font-bold">3</span>
                       </div>
                       <div>
-                        <h3 className=" text-lg font-bold text-[#0f4c75]">
-                          SUBMIT FOR THE PROJECT
+                        <h3 className="font-mondwest text-lg font-bold text-[#0f4c75]">
+                          SUBMIT & CONTRIBUTE
                         </h3>
                         <p className="text-[#3282b8]">
-                          Review your clips and submit them to help our
-                          project's dataset.
+                          Review your recordings and submit them to our research
+                          database.
                         </p>
                       </div>
                     </div>
                   </div>
+                  {/* --- Updated Button --- */}
                   <Button
                     asChild
                     className="bg-[#0f4c75] hover:bg-[#1a6ea8] text-white mt-6"
                   >
                     <Link href={contributeLink}>Start Recording Now</Link>
                   </Button>
+                  {/* --- End Updated Button --- */}
                 </div>
               </div>
 
               <div className="order-1 lg:order-2 relative aspect-video md:aspect-square  overflow-hidden border-4 border-white shadow-xl">
-                {/* Image remains the same */}
                 <div className="absolute inset-0 bg-[#0f4c75]/10 z-10">
                   <Image
                     src="/diagram2.png"
-                    alt="Process diagram illustration"
+                    alt="speaking woman logo"
                     fill
                     className="object-cover"
                     priority
@@ -1867,7 +2097,7 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Privacy Section adjusted for project context */}
+        {/* Privacy Section remains the same */}
         <section
           id="privacy"
           className="py-12 md:py-24 bg-[#0f4c75] text-white"
@@ -1875,33 +2105,36 @@ export default async function Home() {
           <div className="container px-4 md:px-6">
             <div className="mx-auto max-w-2xl text-center space-y-4">
               <Shield className="h-12 w-12 mx-auto mb-4 text-[#bbe1fa]" />
-              <h2 className=" text-2xl md:text-3xl font-bold">
-                YOUR PRIVACY MATTERS
+              <h2 className="font-mondwest text-2xl md:text-3xl font-bold">
+                YOUR DATA PRIVACY IS OUR PRIORITY
               </h2>
               <p className="text-[#bbe1fa] md:text-lg">
-                We take data handling seriously, even for a class project.
+                We're committed to protecting your privacy and using your voice
+                data responsibly.
               </p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-8 mt-12">
               <div className="bg-[#1a6ea8] p-6 rounded-lg">
-                <h3 className=" text-xl font-bold mb-2">PROJECT USE ONLY</h3>
+                <h3 className="font-mondwest text-xl font-bold mb-2">
+                  DATA USAGE
+                </h3>
                 <p className="text-[#bbe1fa]">
-                  Your voice recordings will *only* be used for this specific
-                  machine learning class project to train our male/female voice
-                  classifier. They won't be sold, shared publicly, or used for
-                  any other purpose.
-                  {/* Optional: Add if applicable */}
-                  {/* We plan to delete all collected data after the project is graded. */}
+                  Your voice recordings will only be used for research purposes
+                  to improve machine learning models. We'll never sell your data
+                  to third parties or use it for purposes outside of our
+                  research scope.
                 </p>
               </div>
 
               <div className="bg-[#1a6ea8] p-6 rounded-lg">
-                <h3 className=" text-xl font-bold mb-2">ANONYMIZATION</h3>
+                <h3 className="font-mondwest text-xl font-bold mb-2">
+                  ANONYMIZATION
+                </h3>
                 <p className="text-[#bbe1fa]">
-                  While you sign in to contribute, your user identity is kept
-                  separate from the voice data used for training. The audio
-                  files used by the model are anonymized.
+                  All voice data is anonymized before being added to our
+                  research database. Your personal information is kept separate
+                  from your voice recordings to protect your identity.
                 </p>
               </div>
             </div>
@@ -1911,14 +2144,15 @@ export default async function Home() {
         <section className="py-12 md:py-24 bg-white">
           <div className="container px-4 md:px-6">
             <div className="mx-auto max-w-3xl text-center space-y-8">
-              <h2 className=" text-2xl md:text-3xl font-bold text-[#0f4c75]">
-                HELP OUR PROJECT SUCCEED!
+              <h2 className="font-mondwest text-2xl md:text-3xl font-bold text-[#0f4c75]">
+                JOIN THOUSANDS OF CONTRIBUTORS SHAPING THE FUTURE OF VOICE AI
               </h2>
               <p className="text-[#3282b8] md:text-xl">
-                Your voice recording is a valuable piece of data for our student
-                project! Just a few minutes of your time makes a big difference
-                in helping us learn ML and build our voice classifier.
+                Your voice matters. By contributing just a few minutes of your
+                time, you'll help create more natural, responsive, and accurate
+                voice technologies.
               </p>
+              {/* --- Updated Button --- */}
               <Button
                 asChild
                 className="bg-[#0f4c75] hover:bg-[#1a6ea8] text-white h-14 px-8 text-lg rounded-md mx-auto"
@@ -1927,14 +2161,15 @@ export default async function Home() {
                   <Mic className="mr-2 h-5 w-5" /> Record Your Voice
                 </Link>
               </Button>
+              {/* --- End Updated Button --- */}
               <p className="text-sm text-[#3282b8]">
-                By participating, you agree to our simple project{" "}
+                By participating, you agree to our{" "}
                 <Link href="#" className="underline">
-                  Terms
+                  Terms of Service
                 </Link>{" "}
                 and{" "}
                 <Link href="#" className="underline">
-                  Privacy Notes
+                  Privacy Policy
                 </Link>
                 .
               </p>
@@ -1942,18 +2177,18 @@ export default async function Home() {
           </div>
         </section>
       </main>
-      {/* Footer adjusted slightly */}
+      {/* Footer remains the same */}
       <footer className="border-t border-[#bfd7ed] bg-[#f8fafc] py-6">
         <div className="container px-4 md:px-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2">
               <WaveformCircle className="h-6 w-6 text-[#0f4c75]" />
-              <span className="text-sm font-bold text-[#0f4c75]">
-                VOX VOICE
+              <span className="font-mondwest text-sm font-bold text-[#0f4c75]">
+                VOX VOICE RESEARCH
               </span>
             </div>
             <div className="text-sm text-[#3282b8]">
-              © {new Date().getFullYear()} Vox Voice.
+              © {new Date().getFullYear()} Vox Research. All rights reserved.
             </div>
             <div className="flex gap-4">
               <Link
@@ -1968,8 +2203,12 @@ export default async function Home() {
               >
                 Terms
               </Link>
-              {/* Keep Contact if you have one, otherwise remove */}
-              {/* <Link href="#" className="text-sm text-[#3282b8] hover:text-[#0f4c75]">Contact</Link> */}
+              <Link
+                href="#"
+                className="text-sm text-[#3282b8] hover:text-[#0f4c75]"
+              >
+                Contact
+              </Link>
             </div>
           </div>
         </div>
@@ -3098,9 +3337,9 @@ export function EnvVarWarning() {
 File: components/form-message.tsx
 ================
 export type Message =
-  | { success?: string } // Can have an optional success string
-  | { error?: string } // Can have an optional error string
-  | { message: string }; // Must have a message string
+  | { success: string }
+  | { error: string }
+  | { message: string };
 
 export function FormMessage({ message }: { message: Message }) {
   return (
@@ -3640,30 +3879,6 @@ export const createClient = async () => {
 };
 
 ================
-File: utils/registerWavEncoder.ts
-================
-// src/utils/registerWavEncoder.ts
-import { register } from "extendable-media-recorder";
-import { connect } from "extendable-media-recorder-wav-encoder";
-
-let isWavEncoderRegistered = false;
-
-export const registerWavEncoder = async () => {
-  if (!isWavEncoderRegistered) {
-    try {
-      console.log("Registering WAV encoder...");
-      await register(await connect());
-      isWavEncoderRegistered = true;
-      console.log("WAV encoder registered successfully.");
-    } catch (error) {
-      console.error("Failed to register WAV encoder:", error);
-      // Consider more robust error handling here,
-      // like setting a global flag that the encoder failed to load
-    }
-  }
-};
-
-================
 File: utils/utils.ts
 ================
 import { redirect } from "next/navigation";
@@ -3821,8 +4036,6 @@ File: package.json
     "autoprefixer": "10.4.20",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
-    "extendable-media-recorder": "^9.2.23",
-    "extendable-media-recorder-wav-encoder": "^7.0.127",
     "lucide-react": "^0.468.0",
     "next": "latest",
     "next-themes": "^0.4.3",
@@ -4047,6 +4260,9 @@ const config = {
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+      },
+      fontFamily: {
+        mondwest: ["Mondwest", "sans-serif"],
       },
     },
   },
