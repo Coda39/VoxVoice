@@ -61,7 +61,10 @@ export default function RecordPage() {
   useEffect(() => {
     const setupPage = async () => {
       // Register the WAV encoder when the component mounts
-      if (typeof window === "undefined") return;
+      if (typeof window != "undefined") {
+        await registerWavEncoder();
+        setIsEncoderReady(true); // Mark the encoder as ready
+      }
 
       const getUser = async () => {
         try {
