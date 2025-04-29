@@ -7,9 +7,9 @@ import { ThemeProvider } from "next-themes"; // Assuming ThemeProvider is used h
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Nous Voice Research",
+  title: "VOX Voice Research Project",
   description:
-    "Contribute your voice to advance AI research with Nous Research",
+    "Help contribute to an open voice database for a student machine learning project",
 };
 
 export default function RootLayout({
