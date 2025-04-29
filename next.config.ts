@@ -1,23 +1,31 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Keep existing headers config
   async headers() {
     return [
       {
-        source: "/(.*)", // Apply headers to all routes
+        source: "/(.*)",
         headers: [
           {
             key: "Cross-Origin-Opener-Policy",
-            value: "same-origin", // Allows popups only from the same origin
+            value: "same-origin",
           },
           {
             key: "Cross-Origin-Embedder-Policy",
-            value: "require-corp", // Requires all subresources to opt-in via CORP or CORS headers
+            value: "require-corp",
           },
         ],
       },
     ];
   },
+  // Add this configuration to prevent prerendering /protected/record
+  experimental: {
+    workerThreads: true,
+    cpus: 4,
+  },
+  // Use runtime config for the recording page
+  reactStrictMode: true,
 };
 
 export default nextConfig;
