@@ -1,7 +1,7 @@
 export type Message =
-  | { success?: string } // Can have an optional success string
-  | { error?: string } // Can have an optional error string
-  | { message: string }; // Must have a message string
+  | { success: string }
+  | { error: string }
+  | { message: string };
 
 export function FormMessage({ message }: { message: Message }) {
   return (
