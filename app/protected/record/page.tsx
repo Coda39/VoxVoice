@@ -17,6 +17,13 @@ import { Loader2, Mic, MicOff, Pause, Play, StopCircle } from "lucide-react";
 import { submitRecordingAction } from "./actions";
 import { FormMessage, Message } from "@/components/form-message";
 
+// Import the registration function
+import { registerWavEncoder } from "@/utils/registerWavEncoder";
+
+// Import from extendable-media-recorder (still needed for the MediaRecorder constructor)
+import { MediaRecorder, register } from "extendable-media-recorder";
+// No longer need to import 'connect' here
+
 const phrases = [
   "The rainbow appears after the rain, showcasing vibrant colors while the birds sing sweetly by the flowing stream",
 ];
@@ -33,6 +40,7 @@ export default function RecordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [isEncoderReady, setIsEncoderReady] = useState(false); // New state to track encoder readiness
 
   // MediaRecorder states
   const [isRecording, setIsRecording] = useState(false);
@@ -51,23 +59,31 @@ export default function RecordPage() {
   const visualizerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const getUser = async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) {
+    const setupPage = async () => {
+      // Register the WAV encoder when the component mounts
+      await registerWavEncoder();
+      setIsEncoderReady(true); // Mark the encoder as ready
+
+      const getUser = async () => {
+        try {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (!user) {
+            router.push("/sign-in");
+          } else {
+            setUserId(user.id);
+          }
+        } catch (error) {
+          console.error("Error fetching user:", error);
           router.push("/sign-in");
-        } else {
-          setUserId(user.id);
         }
-      } catch (error) {
-        console.error("Error fetching user:", error);
-        router.push("/sign-in");
-      }
+      };
+      getUser();
+      setCurrentPhrase(phrases[Math.floor(Math.random() * phrases.length)]);
     };
-    getUser();
-    setCurrentPhrase(phrases[Math.floor(Math.random() * phrases.length)]);
+
+    setupPage();
 
     // Cleanup function
     return () => {
@@ -83,8 +99,24 @@ export default function RecordPage() {
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
+      // It's generally not necessary to unregister the encoder
+      // but you might consider stopping the connected worker if needed
     };
-  }, [supabase, router]);
+  }, [supabase, router]); // Include dependencies that should trigger this effect
+
+  // Add a check to disable recording features if the encoder failed to register
+  useEffect(() => {
+    // Check if message is not null AND if it has the 'error' property
+    if (message && "error" in message && typeof message.error === "string") {
+      if (message.error.includes("Failed to initialize audio recorder")) {
+        // You might want to disable the record button or show a specific message
+        // indicating recording is not possible.
+        console.log("WAV encoder failed to initialize, disabling recording.");
+        // Example: set a state to disable the record button
+        // setIsRecordingEnabled(false);
+      }
+    }
+  }, [message]);
 
   // Function to request microphone access
   const getMicrophonePermission = async () => {
@@ -136,6 +168,15 @@ export default function RecordPage() {
     setAudioUrl(null);
     setMessage(null);
     audioChunksRef.current = [];
+    setRecordingTime(0); // Reset timer
+
+    // Check if the encoder is ready before starting recording
+    if (!isEncoderReady) {
+      setMessage({
+        error: "Audio recorder is not ready. Please wait or refresh.",
+      });
+      return;
+    }
 
     // Get microphone permission if needed
     if (!streamRef.current) {
@@ -144,17 +185,9 @@ export default function RecordPage() {
     }
 
     try {
-      // Create MediaRecorder instance with best available mime type
-      let mimeType = "audio/webm";
-      if (!MediaRecorder.isTypeSupported(mimeType)) {
-        mimeType = "audio/mp4";
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-          mimeType = ""; // Let browser decide
-        }
-      }
-
+      // Create MediaRecorder instance with audio/wav mime type
       const mediaRecorder = new MediaRecorder(streamRef.current!, {
-        mimeType: mimeType || undefined,
+        mimeType: "audio/wav", // Specify WAV mime type
       });
 
       // Set up event handlers
@@ -174,14 +207,15 @@ export default function RecordPage() {
         }
 
         try {
+          // Create the WAV blob
           const audioBlob = new Blob(audioChunksRef.current, {
-            type: mediaRecorder.mimeType || "audio/webm",
+            type: "audio/wav", // The type should be audio/wav
           });
           const url = URL.createObjectURL(audioBlob);
           setAudioBlob(audioBlob);
           setAudioUrl(url);
           console.log(
-            "Recording stopped, blob created:",
+            "Recording stopped, WAV blob created:",
             audioBlob.size,
             "bytes",
           );
@@ -194,7 +228,8 @@ export default function RecordPage() {
       };
 
       // Store the MediaRecorder reference
-      mediaRecorderRef.current = mediaRecorder;
+      // Use a type assertion to tell TypeScript it's a MediaRecorder
+      mediaRecorderRef.current = mediaRecorder as MediaRecorder;
 
       // Start recording
       mediaRecorder.start(100); // Collect data every 100ms
@@ -208,10 +243,7 @@ export default function RecordPage() {
         setRecordingTime(seconds);
       }, 1000);
 
-      console.log(
-        "Recording started with mime type:",
-        mimeType || "browser default",
-      );
+      console.log("Recording started with mime type: audio/wav");
     } catch (err: any) {
       console.error("Error starting recording:", err);
       setMessage({ error: `Failed to start recording: ${err.message}` });
@@ -319,15 +351,10 @@ export default function RecordPage() {
       return;
     }
 
-    // Construct the filePath *inside* the handler to ensure latest userId
-    const extension = audioBlob.type.includes("webm")
-      ? "webm"
-      : audioBlob.type.includes("mp4")
-        ? "mp4"
-        : "wav"; // Or determine more robustly
     const timestamp = Date.now();
+    // The extension will now always be wav
+    const filePath = `${userId}/${timestamp}.wav`;
 
-    const filePath = `${userId}/${timestamp}.${extension}`; // Use the state userId
     const {
       data: { user: authUser },
       error: authCheckError,
@@ -352,11 +379,9 @@ export default function RecordPage() {
         authUser.id,
         "Attempting to fix state.",
       );
-      // It might be safer to force a refresh or show an error,
-      // but let's try updating the state for this attempt.
       setUserId(authUser.id);
       // Re-generate filePath with the correct ID
-      const filePath = `${authUser.id}/${timestamp}.${extension}`;
+      const filePath = `${authUser.id}/${timestamp}.wav`;
       console.log("Regenerated filePath with authUser.id:", filePath);
     } else {
       console.log("User ID state matches authenticated user.");
@@ -377,8 +402,8 @@ export default function RecordPage() {
         .from("recordings")
         .upload(filePath, audioBlob, {
           cacheControl: "3600",
-          upsert: true, // Restore this
-          contentType: audioBlob.type || "audio/webm",
+          upsert: true,
+          contentType: "audio/wav", // Explicitly set content type to WAV
         });
 
       // Log the immediate result
@@ -427,10 +452,12 @@ export default function RecordPage() {
     }
   };
 
-  if (!userId) {
+  if (!userId || !isEncoderReady) {
+    // Also wait for the encoder to be ready
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="ml-2">Loading audio recorder...</p>
       </div>
     );
   }
