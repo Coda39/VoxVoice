@@ -321,10 +321,10 @@ export default function RecordPage() {
 
     // Construct the filePath *inside* the handler to ensure latest userId
     const extension = audioBlob.type.includes("webm")
-      ? "webm"
+      ? "wav"
       : audioBlob.type.includes("mp4")
         ? "mp4"
-        : "wav"; // Or determine more robustly
+        : "webm"; // Or determine more robustly
     const timestamp = Date.now();
 
     const filePath = `${userId}/${timestamp}.${extension}`; // Use the state userId
